@@ -2,21 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import MessagePassing
-import numpy as np
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.nn import MessagePassing
 from torch_scatter import scatter_sum
 import numpy as np
+
 
 class MultiHeadAttentionLayer(MessagePassing):
     def __init__(self, in_dim, out_dim, num_heads, use_bias):
         super().__init__(aggr='add', node_dim=0)
         self.out_dim = out_dim
         self.num_heads = num_heads
-        # Linear 변환
+        # Linear transformation
         self.Q = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
         self.K = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
         self.V = nn.Linear(in_dim, out_dim * num_heads, bias=use_bias)
@@ -28,7 +23,7 @@ class MultiHeadAttentionLayer(MessagePassing):
         V_h = self.V(x).view(-1, self.num_heads, self.out_dim)
         proj_e = self.proj_e(edge_attr).view(-1, self.num_heads, self.out_dim)
         
-        # attention scores 계산 및 저장
+        # Calculate and store attention scores
         attention_scores = self.get_attention_scores(Q_h, K_h, proj_e, edge_index, x.size(0))
         
         out = self.propagate(edge_index, 
@@ -46,24 +41,24 @@ class MultiHeadAttentionLayer(MessagePassing):
         return V_j * score
         
     def get_attention_scores(self, Q, K, E, edge_index, num_nodes):
-        # 1. 기본 Score 계산 (Dot product)
+        # 1. Calculate basic score (Dot product)
         score = (Q[edge_index[0]] * K[edge_index[1]]).sum(dim=-1) / np.sqrt(self.out_dim)
 
-        # 2. Edge Feature 반영 (Element-wise multiplication)
+        # 2. Apply edge feature (Element-wise multiplication)
         score = score.unsqueeze(-1)  # [num_edges, num_heads, 1]
         score = score * E  # [num_edges, num_heads, out_dim]
 
-        # 3. 소프트맥스를 위한 Score 합산
+        # 3. Sum scores for softmax
         score = score.sum(dim=-1)  # [num_edges, num_heads]
 
-        # 4. Score 안정화 (Clamping)
+        # 4. Stabilize scores (Clamping)
         score = torch.clamp(score, -10, 10)
         score_exp = torch.exp(score)
 
-        # 5. Softmax 분모 계산 (scatter_sum 활용)
+        # 5. Calculate softmax denominator (using scatter_sum)
         src_index, dst_index = edge_index
-        denominator = scatter_sum(score_exp, src_index, dim=0, dim_size=num_nodes)  # 노드 개수에 맞게 정규화
-        attention = score_exp / (denominator[src_index] + 1e-8)  # 0으로 나누는 것 방지
+        denominator = scatter_sum(score_exp, src_index, dim=0, dim_size=num_nodes)
+        attention = score_exp / (denominator[src_index] + 1e-8)  # Prevent division by zero
 
         return attention
 
@@ -73,15 +68,15 @@ class GraphTransformerLayer(nn.Module):
                  batch_norm=True, residual=True, use_bias=False):
         super().__init__()
         
-        self.in_channels = in_dim # input feature 李⑥썝 
-        self.out_channels = out_dim # output feature 李⑥썝
-        self.num_heads = num_heads # attention head ?닔
-        self.dropout = dropout # drop out 鍮꾩쑉
-        self.residual = residual #residual connectiuon ?궗?슜 ?뿬遺?
-        self.layer_norm = layer_norm #Layer Normalization ?궗?슜 ?뿬遺?
-        self.batch_norm = batch_norm 
+        self.in_channels = in_dim  # Input feature dimension
+        self.out_channels = out_dim  # Output feature dimension
+        self.num_heads = num_heads  # Number of attention heads
+        self.dropout = dropout  # Dropout rate
+        self.residual = residual  # Use residual connection
+        self.layer_norm = layer_norm  # Use Layer Normalization
+        self.batch_norm = batch_norm  # Use Batch Normalization
         
-        # attention layer
+        # Attention layer
         self.attention = MultiHeadAttentionLayer(in_dim, out_dim//num_heads, num_heads, use_bias)
         
         self.O_h = nn.Linear(out_dim, out_dim)
@@ -156,3 +151,34 @@ class GraphTransformerLayer(nn.Module):
             e = self.batch_norm2_e(e)
             
         return h, e, attention_scores
+
+
+class GraphTransformer(nn.Module):
+    def __init__(self, node_dim, edge_dim, hidden_dim, out_dim, n_layers, n_heads, dropout):
+        super().__init__()
+        
+        self.embedding_h = nn.Linear(node_dim, hidden_dim)
+        self.embedding_e = nn.Linear(edge_dim, hidden_dim)
+        
+        self.layers = nn.ModuleList([
+            GraphTransformerLayer(
+                hidden_dim, hidden_dim, n_heads, dropout,
+                layer_norm=False, batch_norm=True, residual=True
+            ) for _ in range(n_layers)
+        ])
+        
+        self.out_layer = nn.Linear(hidden_dim, out_dim)
+        
+    def forward(self, data):
+        x = self.embedding_h(data.x)
+        edge_attr = self.embedding_e(data.edge_attr)
+        
+        attention_scores_all = []
+        
+        for layer in self.layers:
+            x, edge_attr, attention_scores = layer(x, data.edge_index, edge_attr)
+            attention_scores_all.append(attention_scores)
+        
+        x = self.out_layer(x)
+        
+        return x, edge_attr, attention_scores_all

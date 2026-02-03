@@ -110,7 +110,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print(f"Loading data...")
-    extract_df = pd.read_csv('data/data/drugdrug_extract.csv')
+    extract_df = pd.read_csv('data/drugdrug_extract.csv')
     
     idx = find_sample_index(extract_df, args.cid1, args.cid2)
     
@@ -133,7 +133,7 @@ def main():
     drug_a_dataset = torch.load('drug_datasets/drug_a_dataset.pt')
     drug_b_dataset = torch.load('drug_datasets/drug_b_dataset.pt')
     
-    smiles_df = pd.read_csv('data/data/smiles.csv')
+    smiles_df = pd.read_csv('data/smiles.csv')
     smiles_dict = dict(zip(smiles_df['drug_id'], smiles_df['smiles']))
     
     data_a, data_b = drug_a_dataset[idx], drug_b_dataset[idx]

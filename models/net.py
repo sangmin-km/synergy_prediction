@@ -64,7 +64,7 @@ class DrugDrugInteractionNet(nn.Module):
         glu1 = torch.sigmoid(self.glu1(concat))
         glu2 = torch.sigmoid(self.glu2(concat))
         
-        #ºĞ¼®À» À§ÇÑ GLU °¡ÁßÄ¡ ÀúÀå
+        # Store GLU weights for analysis
         self.glu1_weights = glu1
         self.glu2_weights = glu2
         
@@ -84,11 +84,11 @@ class DrugDrugInteractionNet(nn.Module):
         return self
     
     def forward(self, data_a, data_b):
-        # GraphTransformer?Š” (node_features, edge_features, attention_scores_all)?„ ë°˜í™˜
+        # GraphTransformer returns (node_features, edge_features, attention_scores_all)
         node_feat_a, edge_feat_a, attn_scores_a = self.graph_transformer(data_a)
         node_feat_b, edge_feat_b, attn_scores_b = self.graph_transformer(data_b)
         
-        # global_mean_pool??? ?…¸?“œ ?Š¹?„±?— ????•´ ? ?š©
+        # Apply global_mean_pool to node features
         graph_feat_a = global_mean_pool(node_feat_a, data_a.batch)
         graph_feat_b = global_mean_pool(node_feat_b, data_b.batch)
 
@@ -103,7 +103,7 @@ class DrugDrugInteractionNet(nn.Module):
         
         output = self.classifier(combined_feats)
         
-        # ë¶„ì„ ëª¨ë“œ?¸ ê²½ìš°?—ë§? ?–´?…?…˜ ?Š¤ì½”ì–´?„ ?•¨ê»? ë°˜í™˜
+        # Return attention scores only in analysis mode
         if self.analysis_mode:
             return output, {
                 'attn_scores_a': attn_scores_a,
@@ -112,10 +112,9 @@ class DrugDrugInteractionNet(nn.Module):
                 'node_feat_b': node_feat_b,
                 'edge_feat_a': edge_feat_a,
                 'edge_feat_b': edge_feat_b,
-                'glu1_weights' : self.glu1_weights,
-                'glu2_weights' : self.glu2_weights
-                
+                'glu1_weights': self.glu1_weights,
+                'glu2_weights': self.glu2_weights
             }
         
-        # ?•™?Šµ ëª¨ë“œ?—?„œ?Š” ì¶œë ¥ë§? ë°˜í™˜
+        # Return output only in training mode
         return output

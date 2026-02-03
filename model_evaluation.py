@@ -191,13 +191,13 @@ if __name__ == '__main__':
         print(f"  Pearson: {metrics[4]:.4f}")
     
     # Print overall results
-    print("\nOverall Results (Mean Â± Std)")
+    print("\nOverall Results (Mean ¡¾ Std)")
     fold_metrics = np.array(fold_metrics)
     mean_metrics = np.mean(fold_metrics, axis=0)
     std_metrics = np.std(fold_metrics, axis=0)
     
-    print(f"MSE     : {mean_metrics[0]:.4f} Â± {std_metrics[0]:.4f}")
-    print(f"RMSE    : {mean_metrics[1]:.4f} Â± {std_metrics[1]:.4f}")
-    print(f"MAE     : {mean_metrics[2]:.4f} Â± {std_metrics[2]:.4f}")
-    print(f"R2      : {mean_metrics[3]:.4f} Â± {std_metrics[3]:.4f}")
-    print(f"Pearson : {mean_metrics[4]:.4f} Â± {std_metrics[4]:.4f}")
+    print(f"MSE     : {mean_metrics[0]:.4f} ¡¾ {std_metrics[0]:.4f}")
+    print(f"RMSE    : {mean_metrics[1]:.4f} ¡¾ {std_metrics[1]:.4f}")
+    print(f"MAE     : {mean_metrics[2]:.4f} ¡¾ {std_metrics[2]:.4f}")
+    print(f"R2      : {mean_metrics[3]:.4f} ¡¾ {std_metrics[3]:.4f}")
+    print(f"Pearson : {mean_metrics[4]:.4f} ¡¾ {std_metrics[4]:.4f}")

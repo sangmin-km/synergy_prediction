@@ -236,9 +236,9 @@ def load_integrated_data(extract_file, smiles_file, cell_line_files, cell_line_p
 if __name__ == '__main__':
     # Data paths
     paths = {
-        'extract': "data/data/drugdrug_extract.csv",
-        'cell_line': "data/data/gene_expression/",
-        'smiles': "data/data/smiles.csv"
+        'extract': "data/drugdrug_extract.csv",
+        'cell_line': "data/gene_expression/",
+        'smiles': "data/smiles.csv"
     }
     
     cell_lines = ["A375", "A549", "HCT116", "HS 578T", "HT29", "LNCAP", "LOVO",
