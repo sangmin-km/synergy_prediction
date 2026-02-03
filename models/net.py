@@ -3,29 +3,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import dgl.nn.pytorch.glob as dgl_nn_glob
+from torch_geometric.nn import global_mean_pool
 from . import gt_net_compound
 
-class DrugDrugSynergy(nn.Module):
-    def __init__(self, device, hidden_dim=128, gt_layers=3, gt_heads=4, in_feat_dropout=0.1, dropout=0.3, node_dim=24, edge_dim=10, pos_enc_dim=8):
-        super(DrugDrugSynergy, self).__init__()
-        
-        self.device = device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+class DrugDrugInteractionNet(nn.Module):
+    def __init__(self, hidden_dim=128, gt_layers=3, gt_heads=4, dropout=0.3):
+        super(DrugDrugInteractionNet, self).__init__()
         
         self.graph_transformer = gt_net_compound.GraphTransformer(
-            device=device,
-            n_layers=gt_layers,
-            node_dim=node_dim,
-            edge_dim=edge_dim,
+            node_dim=24,
+            edge_dim=10,
             hidden_dim=hidden_dim,
             out_dim=hidden_dim,
+            n_layers=gt_layers,
             n_heads=gt_heads,
-            in_feat_dropout=in_feat_dropout,
-            dropout=dropout,
-            pos_enc_dim=pos_enc_dim
+            dropout=dropout
         )
-        
-        self.pool = dgl_nn_glob.AvgPooling()
         
         self.gene_shared = nn.Sequential(
             nn.Linear(978, 978),
@@ -69,7 +64,7 @@ class DrugDrugSynergy(nn.Module):
         glu1 = torch.sigmoid(self.glu1(concat))
         glu2 = torch.sigmoid(self.glu2(concat))
         
-        # GLU °¡ÁßÄ¡ ÀúÀå (ºĞ¼®¿ë)
+        #ºĞ¼®À» À§ÇÑ GLU °¡ÁßÄ¡ ÀúÀå
         self.glu1_weights = glu1
         self.glu2_weights = glu2
         
@@ -88,34 +83,39 @@ class DrugDrugSynergy(nn.Module):
         self.analysis_mode = mode
         return self
     
-    def forward(self, data_a, data_b, expr_a, expr_b):
-        node_feat_a, edge_feat_a, attn_scores_all_layers_a = self.graph_transformer(data_a)
-        node_feat_b, edge_feat_b, attn_scores_all_layers_b = self.graph_transformer(data_b)
+    def forward(self, data_a, data_b):
+        # GraphTransformer?Š” (node_features, edge_features, attention_scores_all)?„ ë°˜í™˜
+        node_feat_a, edge_feat_a, attn_scores_a = self.graph_transformer(data_a)
+        node_feat_b, edge_feat_b, attn_scores_b = self.graph_transformer(data_b)
         
-        data_a.ndata['h'] = node_feat_a
-        data_b.ndata['h'] = node_feat_b
+        # global_mean_pool??? ?…¸?“œ ?Š¹?„±?— ????•´ ? ?š©
+        graph_feat_a = global_mean_pool(node_feat_a, data_a.batch)
+        graph_feat_b = global_mean_pool(node_feat_b, data_b.batch)
+
+        gene_feat_a, gene_feat_b = self.process_gene_expression(
+            data_a.express, data_b.express
+        )
         
-        graph_feat_a = self.pool(data_a, node_feat_a)
-        graph_feat_b = self.pool(data_b, node_feat_b)
-        
-        # À¯ÀüÀÚ ¹ßÇö µ¥ÀÌÅÍ Ã³¸®
-        gene_feat_a, gene_feat_b = self.process_gene_expression(expr_a, expr_b)
-        
-        # ¸ğµç Æ¯¼º °áÇÕ
         combined_feats = torch.cat([
             graph_feat_a, graph_feat_b,
             gene_feat_a, gene_feat_b
         ], dim=1)
         
-        # ÃÖÁ¾ ¿¹Ãø
         output = self.classifier(combined_feats)
         
+        # ë¶„ì„ ëª¨ë“œ?¸ ê²½ìš°?—ë§? ?–´?…?…˜ ?Š¤ì½”ì–´?„ ?•¨ê»? ë°˜í™˜
         if self.analysis_mode:
             return output, {
-                'attn_scores_all_layers_a': attn_scores_all_layers_a,  
-                'attn_scores_all_layers_b': attn_scores_all_layers_b,  
-                'glu1_weights': self.glu1_weights,
-                'glu2_weights': self.glu2_weights
+                'attn_scores_a': attn_scores_a,
+                'attn_scores_b': attn_scores_b,
+                'node_feat_a': node_feat_a,
+                'node_feat_b': node_feat_b,
+                'edge_feat_a': edge_feat_a,
+                'edge_feat_b': edge_feat_b,
+                'glu1_weights' : self.glu1_weights,
+                'glu2_weights' : self.glu2_weights
+                
             }
         
+        # ?•™?Šµ ëª¨ë“œ?—?„œ?Š” ì¶œë ¥ë§? ë°˜í™˜
         return output
