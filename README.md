@@ -50,5 +50,5 @@ python attention_analysis.py --cid1 3385 --cid2 11960529
 ```
 
 ## Contact
-- Sangmin Park: ksm980226@naver.com
+- Sangmin Kim: ksm980226@naver.com
 - Sunyong Yoo: syyoo@jnu.ac.kr
